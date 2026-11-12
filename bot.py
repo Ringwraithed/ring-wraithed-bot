@@ -9,10 +9,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 BOT_NAME = "Ring_Wraithed"
+# Dedicated WoW: Forever Blue Tracker news feeds are authoritative: every item
+# in these feeds belongs to Forever, even if its title omits the game name.
+# Keep the general Blue Tracker feeds as a secondary source for forum topics;
+# those entries must still pass the Forever keyword filter.
 FEEDS = [
-    "https://www.wowhead.com/blue-tracker?rss=",
-    "https://www.wowhead.com/blue-tracker/news?rss=",
-    "https://www.wowhead.com/news/rss/all",
+    ("https://www.wowhead.com/forever/blue-tracker/news/us?rss=", True),
+    ("https://www.wowhead.com/forever/blue-tracker/news/eu?rss=", True),
+    ("https://www.wowhead.com/blue-tracker?rss=", False),
+    ("https://www.wowhead.com/blue-tracker/news?rss=", False),
 ]
 STATE_FILE = Path("state.json")
 DRAFT_DIR = Path("drafts")
@@ -80,7 +85,7 @@ def clean_text(value):
     value = re.sub(r"<[^>]+>", " ", value)
     return re.sub(r"\s+", " ", value).strip()
 
-def get_entries(feed_url):
+def get_entries(feed_url, forever_scoped=False):
     request = urllib.request.Request(feed_url, headers={"User-Agent": "RingWraithedNewsBot/2.0"})
     with urllib.request.urlopen(request, timeout=25) as response:
         root = ET.fromstring(response.read())
@@ -93,7 +98,8 @@ def get_entries(feed_url):
         pub_date = item.findtext("pubDate") or ""
         if title and link.startswith(("https://", "http://")):
             entries.append({"title": title, "link": link, "id": guid or link,
-                            "description": description, "date": pub_date})
+                            "description": description, "date": pub_date,
+                            "forever_scoped": forever_scoped})
     ns = {"a": "http://www.w3.org/2005/Atom"}
     for item in root.findall(".//a:entry", ns):
         title = clean_text(item.findtext("a:title", namespaces=ns))
@@ -159,9 +165,9 @@ def run_news(state):
     drafted = set(state["drafted_news"])
     entries = []
     successful_feeds = 0
-    for feed in FEEDS:
+    for feed, forever_scoped in FEEDS:
         try:
-            feed_entries = get_entries(feed)
+            feed_entries = get_entries(feed, forever_scoped=forever_scoped)
             entries.extend(feed_entries)
             successful_feeds += 1
             print(f"Feed OK: {feed} ({len(feed_entries)} entries)")
@@ -171,7 +177,9 @@ def run_news(state):
         raise RuntimeError("All RSS feeds failed; refusing to treat this as an empty news day.")
     unique = {}
     for entry in entries:
-        if is_forever_story(entry) and entry["id"] not in drafted:
+        # Dedicated Forever feeds are already scoped to the correct game.
+        # General feeds require an explicit Forever match to avoid Retail/Classic noise.
+        if (entry.get("forever_scoped") or is_forever_story(entry)) and entry["id"] not in drafted:
             unique.setdefault(entry["id"], entry)
     candidates = sorted(unique.values(), key=lambda item: item.get("date", ""), reverse=True)
     if not candidates:
