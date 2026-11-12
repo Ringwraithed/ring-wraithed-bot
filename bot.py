@@ -76,9 +76,9 @@ def save_state(state):
 
 def clean_text(value):
     value = html.unescape(value or "")
-    value = re.sub(r"<(script|style).*?>.*?</\\1>", " ", value, flags=re.I | re.S)
+    value = re.sub(r"<(script|style).*?>.*?</\1>", " ", value, flags=re.I | re.S)
     value = re.sub(r"<[^>]+>", " ", value)
-    return re.sub(r"\\s+", " ", value).strip()
+    return re.sub(r"\s+", " ", value).strip()
 
 def get_entries(feed_url):
     request = urllib.request.Request(feed_url, headers={"User-Agent": "RingWraithedNewsBot/2.0"})
@@ -123,8 +123,8 @@ def make_news_post(entry):
         headline = "🔥 WoW: Forever update"
     else:
         headline = "🔵 Blizzard Blue post for WoW: Forever"
-    suffix = f"\\n\\n{entry['link']}\\n#WoWForever"
-    prefix = f"{headline}\\n\\n"
+    suffix = f"\n\n{entry['link']}\n#WoWForever"
+    prefix = f"{headline}\n\n"
     available = MAX_POST_LENGTH - len(prefix) - len(suffix)
     if available < 20:
         raise ValueError("Source URL leaves too little room for a readable post.")
@@ -140,10 +140,10 @@ def save_draft(post, mode, source=None):
     DRAFT_DIR.mkdir(parents=True, exist_ok=True)
     filename = DRAFT_DIR / f"{now.date()}.md"
     with filename.open("a", encoding="utf-8") as file:
-        file.write(f"\\n\\n---\\n\\n## {now.strftime('%H:%M UTC')} — {mode} draft\\n\\n")
+        file.write(f"\n\n---\n\n## {now.strftime('%H:%M UTC')} — {mode} draft\n\n")
         if source:
-            file.write(f"Source: {source}\\n\\n")
-        file.write(f"\`\`\`text\\n{post}\\n\`\`\`\\n")
+            file.write(f"Source: {source}\n\n")
+        file.write(f"```text\n{post}\n```\n")
     print(f"Saved {mode} draft to {filename}")
     print("----- DRAFT PREVIEW -----")
     print(post)
@@ -152,8 +152,8 @@ def save_draft(post, mode, source=None):
 def make_question(state):
     index = int(state.get("question_index", 0))
     question = QUESTIONS[index % len(QUESTIONS)]
-    return ("⚔️ WoW: Forever community question\\n\\n"
-            f"{question}\\n\\nShare your answer below! #WoWForever")
+    return ("⚔️ WoW: Forever community question\n\n"
+            f"{question}\n\nShare your answer below! #WoWForever")
 
 def run_news(state):
     drafted = set(state["drafted_news"])
