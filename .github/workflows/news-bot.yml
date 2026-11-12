@@ -1,15 +1,15 @@
-name: Ring Wraithed WoW Forever Auto Publisher
+name: Ring Wraithed WoW Forever Draft Generator
 
 on:
   schedule:
     # Check for new WoW: Forever news every 30 minutes.
     - cron: "*/30 * * * *"
-    # Community engagement posts: Monday, Wednesday, Friday at 17:00 UTC.
+    # Create community question drafts on Monday, Wednesday, Friday at 17:00 UTC.
     - cron: "0 17 * * 1,3,5"
   workflow_dispatch:
     inputs:
       mode:
-        description: "What should the bot publish?"
+        description: "Which draft should the bot create?"
         required: true
         type: choice
         options:
@@ -20,11 +20,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: ring-wraithed-auto-publisher
+  group: ring-wraithed-draft-generator
   cancel-in-progress: false
 
 jobs:
-  publish:
+  draft:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -35,10 +35,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Choose publishing mode
+      - name: Choose draft mode
         id: mode
         shell: bash
         run: |
@@ -50,22 +47,17 @@ jobs:
             echo "mode=news" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish to X
-        env:
-          X_API_KEY: ${{ secrets.X_API_KEY }}
-          X_API_SECRET: ${{ secrets.X_API_SECRET }}
-          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
-          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+      - name: Generate draft
         run: python bot.py --mode "${{ steps.mode.outputs.mode }}"
 
-      - name: Save publication history
+      - name: Save drafts and history
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add state.json drafts/
           if git diff --cached --quiet; then
-            echo "No publication history changes to save"
+            echo "No new drafts to save"
           else
-            git commit -m "Record published WoW Forever posts"
+            git commit -m "Add WoW Forever post draft"
             git push
           fi
