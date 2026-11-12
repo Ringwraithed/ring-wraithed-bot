@@ -1,15 +1,12 @@
 import argparse
 import html
 import json
-import os
 import re
 import sys
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
-
-import tweepy
 
 BOT_NAME = "Ring_Wraithed"
 FEEDS = [
@@ -60,14 +57,15 @@ QUESTIONS = [
 
 def load_state():
     if not STATE_FILE.exists():
-        return {"published_news": [], "published_engagement": [], "question_index": 0}
+        return {"drafted_news": [], "question_index": 0}
     try:
         state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         raise RuntimeError(f"Cannot safely read {STATE_FILE}: {exc}") from exc
-    # The old "seen" list represented drafts, not confirmed publications.
-    state.setdefault("published_news", [])
-    state.setdefault("published_engagement", [])
+    # Preserve the old bot's seen list: those items were already drafted before,
+    # even though they were never confirmed as published.
+    drafted = state.get("drafted_news", state.get("seen", []))
+    state["drafted_news"] = drafted[-MAX_HISTORY:]
     state.setdefault("question_index", 0)
     return state
 
@@ -78,9 +76,9 @@ def save_state(state):
 
 def clean_text(value):
     value = html.unescape(value or "")
-    value = re.sub(r"<(script|style).*?>.*?</\1>", " ", value, flags=re.I | re.S)
+    value = re.sub(r"<(script|style).*?>.*?</\\1>", " ", value, flags=re.I | re.S)
     value = re.sub(r"<[^>]+>", " ", value)
-    return re.sub(r"\s+", " ", value).strip()
+    return re.sub(r"\\s+", " ", value).strip()
 
 def get_entries(feed_url):
     request = urllib.request.Request(feed_url, headers={"User-Agent": "RingWraithedNewsBot/2.0"})
@@ -125,9 +123,8 @@ def make_news_post(entry):
         headline = "🔥 WoW: Forever update"
     else:
         headline = "🔵 Blizzard Blue post for WoW: Forever"
-    link = entry["link"]
-    suffix = f"\n\n{link}\n#WoWForever"
-    prefix = f"{headline}\n\n"
+    suffix = f"\\n\\n{entry['link']}\\n#WoWForever"
+    prefix = f"{headline}\\n\\n"
     available = MAX_POST_LENGTH - len(prefix) - len(suffix)
     if available < 20:
         raise ValueError("Source URL leaves too little room for a readable post.")
@@ -138,44 +135,28 @@ def make_news_post(entry):
         raise ValueError(f"Generated post is too long ({len(post)} characters).")
     return post
 
-def make_question(state):
-    index = int(state.get("question_index", 0))
-    question = QUESTIONS[index % len(QUESTIONS)]
-    return ("⚔️ WoW: Forever community question\n\n"
-            f"{question}\n\nShare your answer below! #WoWForever")
-
-def make_x_client():
-    names = ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET")
-    values = {name: os.getenv(name) for name in names}
-    missing = [name for name, value in values.items() if not value]
-    if missing:
-        raise RuntimeError("Missing GitHub Actions secrets: " + ", ".join(missing))
-    return tweepy.Client(
-        consumer_key=values["X_API_KEY"],
-        consumer_secret=values["X_API_SECRET"],
-        access_token=values["X_ACCESS_TOKEN"],
-        access_token_secret=values["X_ACCESS_TOKEN_SECRET"],
-        wait_on_rate_limit=True,
-    )
-
-def publish(client, post):
-    response = client.create_tweet(text=post)
-    data = getattr(response, "data", None) or {}
-    tweet_id = data.get("id")
-    if not tweet_id:
-        raise RuntimeError(f"X did not return a tweet ID: {response}")
-    return str(tweet_id)
-
-def save_published_draft(post, mode, tweet_id):
+def save_draft(post, mode, source=None):
     now = datetime.now(timezone.utc)
     DRAFT_DIR.mkdir(parents=True, exist_ok=True)
     filename = DRAFT_DIR / f"{now.date()}.md"
     with filename.open("a", encoding="utf-8") as file:
-        file.write(f"\n\n---\n\n## {now.strftime('%H:%M UTC')} — {mode}\n\n"
-                   f"{post}\n\nPublished: https://x.com/i/web/status/{tweet_id}\n")
+        file.write(f"\\n\\n---\\n\\n## {now.strftime('%H:%M UTC')} — {mode} draft\\n\\n")
+        if source:
+            file.write(f"Source: {source}\\n\\n")
+        file.write(f"\`\`\`text\\n{post}\\n\`\`\`\\n")
+    print(f"Saved {mode} draft to {filename}")
+    print("----- DRAFT PREVIEW -----")
+    print(post)
+    print("-------------------------")
 
-def run_news(state, client):
-    published = set(state["published_news"])
+def make_question(state):
+    index = int(state.get("question_index", 0))
+    question = QUESTIONS[index % len(QUESTIONS)]
+    return ("⚔️ WoW: Forever community question\\n\\n"
+            f"{question}\\n\\nShare your answer below! #WoWForever")
+
+def run_news(state):
+    drafted = set(state["drafted_news"])
     entries = []
     successful_feeds = 0
     for feed in FEEDS:
@@ -190,43 +171,36 @@ def run_news(state, client):
         raise RuntimeError("All RSS feeds failed; refusing to treat this as an empty news day.")
     unique = {}
     for entry in entries:
-        if is_forever_story(entry) and entry["id"] not in published:
+        if is_forever_story(entry) and entry["id"] not in drafted:
             unique.setdefault(entry["id"], entry)
     candidates = sorted(unique.values(), key=lambda item: item.get("date", ""), reverse=True)
     if not candidates:
-        print("No new qualifying WoW: Forever Blue posts.")
+        print("No new qualifying WoW: Forever Blue posts to draft.")
         return False
     entry = candidates[0]
     post = make_news_post(entry)
-    tweet_id = publish(client, post)
-    # Only advance publication history after X confirms the post.
-    state["published_news"] = (state["published_news"] + [entry["id"]])[-MAX_HISTORY:]
+    save_draft(post, "news", entry["link"])
+    state["drafted_news"] = (state["drafted_news"] + [entry["id"]])[-MAX_HISTORY:]
     save_state(state)
-    save_published_draft(post, "news", tweet_id)
-    print(f"Published news tweet {tweet_id}: {entry['title']}")
     return True
 
-def run_community(state, client):
+def run_community(state):
     post = make_question(state)
-    tweet_id = publish(client, post)
+    save_draft(post, "community")
     state["question_index"] = int(state.get("question_index", 0)) + 1
-    state["published_engagement"] = (state["published_engagement"] + [tweet_id])[-MAX_HISTORY:]
     save_state(state)
-    save_published_draft(post, "community", tweet_id)
-    print(f"Published community tweet {tweet_id}")
     return True
 
 def main():
-    parser = argparse.ArgumentParser(description="WoW: Forever X publishing bot")
+    parser = argparse.ArgumentParser(description="WoW: Forever draft generator (no automatic X posting)")
     parser.add_argument("--mode", choices=("news", "community"), default="news")
     args = parser.parse_args()
-    print(f"{BOT_NAME}: starting {args.mode} run")
+    print(f"{BOT_NAME}: creating {args.mode} draft")
     state = load_state()
-    client = make_x_client()
     if args.mode == "news":
-        run_news(state, client)
+        run_news(state)
     else:
-        run_community(state, client)
+        run_community(state)
 
 if __name__ == "__main__":
     try:
