@@ -12,7 +12,7 @@ Automated WoW: Forever **draft generator** for X. It does not publish to X. You 
 - Prints each new draft in the GitHub Actions run log.
 - Does not connect to X, call the X API, or require X API credentials/credits.
 
-News tracking now prioritizes Wowhead's dedicated WoW: Forever Blue Tracker RSS feeds for both US and EU. These feeds are treated as Forever-specific even when an individual post title does not repeat the game name. General Blue Tracker feeds are retained as a secondary source and are filtered for explicit WoW: Forever wording, which helps catch relevant forum blue posts without pulling in unrelated Retail or other Classic news.
+News tracking now checks Wowhead's dedicated WoW: Forever Blue Tracker RSS feed, plus the US and EU Forever news feeds. Dedicated Forever feeds are trusted even when an individual post title does not repeat the game name, so the bot can catch forum blue posts as well as official news. General Blue Tracker feeds remain as a secondary source and require explicit WoW: Forever wording to avoid unrelated Retail or other Classic news.
 
 ## Where to find drafts
 
