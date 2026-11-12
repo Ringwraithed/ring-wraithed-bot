@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 FEEDS = [
     "https://www.wowhead.com/news/rss/all",
+    "https://www.wowhead.com/blue-tracker?rss=",
     "https://www.wowhead.com/blue-tracker/news?rss=",
 ]
 
