@@ -1,0 +1,44 @@
+
+name: Ring Wraithed WoW Forever News
+
+on:
+  schedule:
+    - cron: "0 0,6,12,18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ring-wraithed-news
+  cancel-in-progress: false
+
+jobs:
+  create-posts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run WoW Forever news bot
+        run: python bot.py
+
+      - name: Save new drafts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add state.json drafts/
+
+          if git diff --cached --quiet; then
+            echo "No changes to save"
+          else
+            git commit -m "Create WoW Forever post drafts"
+            git push
+          fi
