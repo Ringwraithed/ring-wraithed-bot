@@ -14,6 +14,7 @@ BOT_NAME = "Ring_Wraithed"
 # Keep the general Blue Tracker feeds as a secondary source for forum topics;
 # those entries must still pass the Forever keyword filter.
 FEEDS = [
+    ("https://www.wowhead.com/forever/blue-tracker?rss=", True),
     ("https://www.wowhead.com/forever/blue-tracker/news/us?rss=", True),
     ("https://www.wowhead.com/forever/blue-tracker/news/eu?rss=", True),
     ("https://www.wowhead.com/blue-tracker?rss=", False),
