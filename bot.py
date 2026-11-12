@@ -112,7 +112,8 @@ def get_entries(feed_url, forever_scoped=False):
                     or item.findtext("a:updated", namespaces=ns) or "")
         if title and link.startswith(("https://", "http://")):
             entries.append({"title": title, "link": link, "id": guid or link,
-                            "description": description, "date": pub_date})
+                            "description": description, "date": pub_date,
+                            "forever_scoped": forever_scoped})
     return entries
 
 def is_forever_story(entry):
