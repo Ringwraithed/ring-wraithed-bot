@@ -126,23 +126,50 @@ def is_forever_story(entry):
 
     return any(term in text for term in terms)
 
-def make_news_post(entry):
-    title = entry["title"][:180]
 
-    return (
-        f"📰 WoW: Forever UPDATE\n\n"
-        f"{title}\n\n"
-        f"Read the full details:\n{entry['link']}\n\n"
-        f"#WoWForever #Warcraft"
+def make_news_post(entry):
+    title = entry["title"].strip()
+    description = entry.get("description", "").strip()
+    link = entry["link"]
+
+    lower = title.lower()
+
+    if "hotfix" in lower:
+        headline = "🚨 WOW: FOREVER HOTFIX ALERT!"
+        question = "What do you think of these changes?"
+    elif "class" in lower or "tuning" in lower:
+        headline = "⚔️ CLASS UPDATE!"
+        question = "Is your class getting the changes it needs?"
+    elif "secret" in lower or "discovered" in lower:
+        headline = "🔎 NEW DISCOVERY IN WOW: FOREVER!"
+        question = "Have you discovered anything interesting?"
+    elif "dungeon" in lower or "loot" in lower:
+        headline = "🔥 WOW: FOREVER DUNGEON UPDATE!"
+        question = "Have you explored this content yet?"
+    elif "blue post" in lower:
+        headline = "🔵 BLIZZARD BLUE POST!"
+        question = "What are your thoughts?"
+    else:
+        headline = "📰 WOW: FOREVER NEWS!"
+        question = "What do you think about this?"
+
+    # Only use the feed's actual description.
+    # Never invent details if it is missing.
+    summary = description[:350].strip()
+
+    post = f"{headline}\n\n{title}\n"
+
+    if summary:
+        post += f"\n{summary}\n"
+
+    post += (
+        f"\n{question}\n\n"
+        f"Full details 👇\n{link}\n\n"
+        f"#WoWForever"
     )
 
-def make_question(state):
-    index = state.get("question_index", 0)
-    question = QUESTIONS[index % len(QUESTIONS)]
+    return post
 
-    state["question_index"] = index + 1
-
-    return (
         f"⚔️ WoW: Forever COMMUNITY QUESTION\n\n"
         f"{question}\n\n"
         f"Share your answer below!\n\n"
