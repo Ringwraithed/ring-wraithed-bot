@@ -4,7 +4,7 @@ Automated WoW: Forever **draft generator** for X. It does not publish to X. You 
 
 ## What it does
 
-- Checks the WoWHead Blue Tracker RSS feeds every 30 minutes.
+- Checks Wowhead's WoW: Forever news and Blue Tracker RSS feeds every 30 minutes.
 - Creates at most one new qualifying WoW: Forever news draft per run.
 - Creates a rotating community-question draft on Monday, Wednesday, and Friday at 17:00 UTC.
 - Saves draft text in dated Markdown files in `drafts/`.
@@ -12,7 +12,7 @@ Automated WoW: Forever **draft generator** for X. It does not publish to X. You 
 - Prints each new draft in the GitHub Actions run log.
 - Does not connect to X, call the X API, or require X API credentials/credits.
 
-News tracking now checks Wowhead's dedicated WoW: Forever Blue Tracker RSS feed, plus the US and EU Forever news feeds. Dedicated Forever feeds are trusted even when an individual post title does not repeat the game name, so the bot can catch forum blue posts as well as official news. General Blue Tracker feeds remain as a secondary source and require explicit WoW: Forever wording to avoid unrelated Retail or other Classic news.
+News tracking checks Wowhead's dedicated WoW: Forever news feed (editorial news, guides, hotfix coverage, and other Forever articles), the dedicated Forever Blue Tracker RSS feed, and the US and EU Forever Blue Tracker news feeds. Dedicated Forever feeds are trusted even when an individual post title does not repeat the game name. General Blue Tracker feeds remain a secondary source and require explicit WoW: Forever wording to avoid unrelated Retail or other Classic news. The bot still creates at most one new news draft per run.
 
 ## Where to find drafts
 
