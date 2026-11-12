@@ -9,16 +9,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 BOT_NAME = "Ring_Wraithed"
-# Dedicated WoW: Forever news and Blue Tracker feeds are authoritative:
-# every item belongs to Forever, even if its title omits the game name.
-# General Blue Tracker feeds remain secondary and require Forever keywords.
+# Mirror both content areas on Wowhead's WoW: Forever hub:
+# - /forever/news: recent/editorial news and guides
+# - /forever/blue-tracker: Blizzard Blue Tracker posts
+# Dedicated Forever feeds are authoritative; broad feeds are filtered.
 FEEDS = [
-    ("https://www.wowhead.com/forever/news?rss=", True),
-    ("https://www.wowhead.com/forever/blue-tracker?rss=", True),
-    ("https://www.wowhead.com/forever/blue-tracker/news/us?rss=", True),
-    ("https://www.wowhead.com/forever/blue-tracker/news/eu?rss=", True),
-    ("https://www.wowhead.com/blue-tracker?rss=", False),
-    ("https://www.wowhead.com/blue-tracker/news?rss=", False),
+    ("https://www.wowhead.com/forever/news?rss=", True, "news"),
+    ("https://www.wowhead.com/forever/blue-tracker?rss=", True, "blue_tracker"),
+    ("https://www.wowhead.com/forever/blue-tracker/news/us?rss=", True, "blue_tracker"),
+    ("https://www.wowhead.com/forever/blue-tracker/news/eu?rss=", True, "blue_tracker"),
+    ("https://www.wowhead.com/news/rss/all", False, "news"),
+    ("https://www.wowhead.com/blue-tracker?rss=", False, "blue_tracker"),
+    ("https://www.wowhead.com/blue-tracker/news?rss=", False, "blue_tracker"),
 ]
 STATE_FILE = Path("state.json")
 DRAFT_DIR = Path("drafts")
@@ -86,7 +88,7 @@ def clean_text(value):
     value = re.sub(r"<[^>]+>", " ", value)
     return re.sub(r"\s+", " ", value).strip()
 
-def get_entries(feed_url, forever_scoped=False):
+def get_entries(feed_url, forever_scoped=False, source_type="news"):
     request = urllib.request.Request(feed_url, headers={"User-Agent": "RingWraithedNewsBot/2.0"})
     with urllib.request.urlopen(request, timeout=25) as response:
         root = ET.fromstring(response.read())
@@ -100,7 +102,7 @@ def get_entries(feed_url, forever_scoped=False):
         if title and link.startswith(("https://", "http://")):
             entries.append({"title": title, "link": link, "id": guid or link,
                             "description": description, "date": pub_date,
-                            "forever_scoped": forever_scoped})
+                            "forever_scoped": forever_scoped, "source_type": source_type})
     ns = {"a": "http://www.w3.org/2005/Atom"}
     for item in root.findall(".//a:entry", ns):
         title = clean_text(item.findtext("a:title", namespaces=ns))
@@ -123,14 +125,16 @@ def is_forever_story(entry):
 def make_news_post(entry):
     title = entry["title"].strip()
     lower = title.lower()
-    if "hotfix" in lower:
+    if entry.get("source_type") == "blue_tracker":
+        headline = "🔵 Blizzard Blue post — WoW: Forever"
+    elif "hotfix" in lower:
         headline = "🚨 WoW: Forever hotfix"
     elif "class" in lower or "tuning" in lower:
         headline = "⚔️ WoW: Forever class update"
     elif "dungeon" in lower or "loot" in lower:
         headline = "🔥 WoW: Forever update"
     else:
-        headline = "🔵 Blizzard Blue post for WoW: Forever"
+        headline = "📰 WoW: Forever news"
     suffix = f"\n\n{entry['link']}\n#WoWForever"
     prefix = f"{headline}\n\n"
     available = MAX_POST_LENGTH - len(prefix) - len(suffix)
@@ -167,12 +171,14 @@ def run_news(state):
     drafted = set(state["drafted_news"])
     entries = []
     successful_feeds = 0
-    for feed, forever_scoped in FEEDS:
+    for feed, forever_scoped, source_type in FEEDS:
         try:
-            feed_entries = get_entries(feed, forever_scoped=forever_scoped)
+            feed_entries = get_entries(
+                feed, forever_scoped=forever_scoped, source_type=source_type
+            )
             entries.extend(feed_entries)
             successful_feeds += 1
-            print(f"Feed OK: {feed} ({len(feed_entries)} entries)")
+            print(f"Feed OK ({source_type}): {feed} ({len(feed_entries)} entries)")
         except Exception as exc:
             print(f"Feed unavailable: {feed}: {exc}")
     if successful_feeds == 0:
@@ -183,7 +189,18 @@ def run_news(state):
         # General feeds require an explicit Forever match to avoid Retail/Classic noise.
         if (entry.get("forever_scoped") or is_forever_story(entry)) and entry["id"] not in drafted:
             unique.setdefault(entry["id"], entry)
-    candidates = sorted(unique.values(), key=lambda item: item.get("date", ""), reverse=True)
+    def published_timestamp(item):
+        value = item.get("date", "")
+        try:
+            from email.utils import parsedate_to_datetime
+            return parsedate_to_datetime(value).timestamp()
+        except (TypeError, ValueError, OverflowError):
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+            except (TypeError, ValueError, OverflowError):
+                return 0
+
+    candidates = sorted(unique.values(), key=published_timestamp, reverse=True)
     if not candidates:
         print("No new qualifying WoW: Forever Blue posts to draft.")
         return False
