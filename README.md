@@ -8,6 +8,7 @@ Automated WoW: Forever **draft generator** for X. It does not publish to X. You 
 - Creates at most one new qualifying WoW: Forever news draft per run.
 - Creates a rotating community-question draft on Monday, Wednesday, and Friday at 17:00 UTC.
 - Saves draft text in dated Markdown files in `drafts/`.
+- Adds two relevant hashtags to every news and community draft (`#WoWForever` plus a broad or topic-specific WoW tag), following X's recommendation to use no more than two hashtags per post.
 - Tracks drafted news items to avoid generating the same news draft repeatedly.
 - Prints each new draft in the GitHub Actions run log.
 - Does not connect to X, call the X API, or require X API credentials/credits.
