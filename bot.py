@@ -122,6 +122,19 @@ def is_forever_story(entry):
     text = (entry.get("title", "") + " " + entry.get("description", "")).lower()
     return any(term in text for term in FOREVER_TERMS)
 
+def hashtag_suffix(topic_text=""):
+    """Keep X drafts discoverable without hashtag stuffing."""
+    text = (topic_text or "").lower()
+    tags = ["#WoWForever", "#WoW"]
+    if any(term in text for term in ("dungeon", "raid", "instance")):
+        tags[1] = "#WoWDungeons"
+    elif any(term in text for term in ("class", "talent", "spec", "ability")):
+        tags[1] = "#WoWClasses"
+    elif any(term in text for term in ("pvp", "battleground", "arena")):
+        tags[1] = "#WoWPvP"
+    return " ".join(tags)
+
+
 def make_news_post(entry):
     title = entry["title"].strip()
     lower = title.lower()
@@ -135,7 +148,8 @@ def make_news_post(entry):
         headline = "🔥 WoW: Forever update"
     else:
         headline = "📰 WoW: Forever news"
-    suffix = f"\n\n{entry['link']}\n#WoWForever"
+    tags = hashtag_suffix(title)
+    suffix = f"\n\n{entry['link']}\n{tags}"
     prefix = f"{headline}\n\n"
     available = MAX_POST_LENGTH - len(prefix) - len(suffix)
     if available < 20:
@@ -164,8 +178,9 @@ def save_draft(post, mode, source=None):
 def make_question(state):
     index = int(state.get("question_index", 0))
     question = QUESTIONS[index % len(QUESTIONS)]
+    tags = hashtag_suffix(question)
     return ("⚔️ WoW: Forever community question\n\n"
-            f"{question}\n\nShare your answer below! #WoWForever")
+            f"{question}\n\nShare your answer below!\n{tags}")
 
 def run_news(state):
     drafted = set(state["drafted_news"])
